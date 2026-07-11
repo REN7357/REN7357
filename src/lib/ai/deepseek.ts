@@ -3,16 +3,28 @@
  */
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  baseURL: "https://api.deepseek.com/v1",
-  apiKey: process.env.DEEPSEEK_API_KEY || "",
-});
+function getClient(): OpenAI {
+  return new OpenAI({
+    baseURL: "https://api.deepseek.com/v1",
+    apiKey: process.env.DEEPSEEK_API_KEY || "sk-dummy-key-for-build",
+  });
+}
 
 export async function callDeepSeek(
   systemPrompt: string,
   userMessage: string,
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
+  if (!process.env.DEEPSEEK_API_KEY) {
+    return JSON.stringify({
+      tags: ["时尚", "美妆"],
+      style: "时尚内容创作者",
+      relevance: 60,
+      recommendation: "建议合作（AI 未配置，使用默认分析）",
+      reason: "未配置 DeepSeek API Key，使用默认标签",
+    });
+  }
+  const client = getClient();
   const response = await client.chat.completions.create({
     model: "deepseek-chat",
     messages: [
