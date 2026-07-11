@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("bd") // admin, bd
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Channel {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  label     String
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  campaigns Campaign[]
+}
+
+model TagRule {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String   // allowed, rejected
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model EmailTemplate {
+  id            String      @id @default(cuid())
+  name          String
+  type          String   // benefit, value, test
+  subject       String
+  body          String
+  openRate      Float    @default(0)
+  replyRate     Float    @default(0)
+  interestRate  Float    @default(0)
+  version       Int      @default(1)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now())
+  campaigns     Campaign[]
+  outreaches    Outreach[]
+}
+
+model Campaign {
+  id               String      @id @default(cuid())
+  name             String
+  description      String?
+  channelId         String?
+  channel          Channel?    @relation(fields: [channelId], references: [id])
+  templateId       String?
+  template         EmailTemplate? @relation(fields: [templateId], references: [id])
+  status           String      @default("draft") // draft, running, paused, completed
+  totalSent        Int         @default(0)
+  totalOpened      Int         @default(0)
+  totalReplied     Int         @default(0)
+  totalInterested  Int         @default(0)
+  createdBy        String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @default(now())
+  influencers      Influencer[]
+  outreaches       Outreach[]
+}
+
+model Influencer {
+  id             String      @id @default(cuid())
+  name           String
+  profileUrl     String?
+  platformId     String?
+  platform       String
+  followers      Int         @default(0)
+  sales30d       Int         @default(0)
+  tags           String      @default("[]")
+  email          String?
+  phone          String?
+  sourceChannel  String?
+
+  status         String      @default("raw") // raw, deduped, filtered, passed, contacted, replied, interested, cooperating, ended
+  filterReason   String?
+  filterCategory String?     // 基础过滤, 内容过滤, 带货过滤
+  allowedTags    String      @default("[]")
+  rejectedTags   String      @default("[]")
+  recentVideos   String      @default("[]")
+  aiSummary      String?
+
+  reviewStatus   String      @default("pending") // pending, qualified, cooperable, 不合格
+  reviewNote     String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+
+  campaignId     String?
+  campaign       Campaign?   @relation(fields: [campaignId], references: [id])
+  outreaches     Outreach[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now())
+}
+
+model DedupLog {
+  id              String   @id @default(cuid())
+  influencerId    String?
+  influencerName  String
+  platformId      String?
+  platform        String
+  matchedField    String   // name, platformId, email
+  matchedValue    String
+  sourceList      String   // feishu, existing
+  createdAt       DateTime @default(now())
+}
+
+model Outreach {
+  id             String         @id @default(cuid())
+  influencerId   String
+  influencer     Influencer     @relation(fields: [influencerId], references: [id])
+  campaignId     String?
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id])
+  templateId     String?
+  template       EmailTemplate? @relation(fields: [templateId], references: [id])
+  email          String?
+  status         String         @default("sent") // sent, opened, replied, interested, no_response
+  sentAt         DateTime       @default(now())
+  openedAt       DateTime?
+  repliedAt      DateTime?
+  replyContent   String?
+  interestLevel  Int?
+  createdAt      DateTime       @default(now())
+}
+
+model IterationReport {
+  id                  String   @id @default(cuid())
+  weekStart           DateTime
+  weekEnd             DateTime
+  summary             String
+  topFollowerRange    String?
+  topTags             String   @default("[]")
+  commonContentStyle  String?
+  replyPreference     String?
+  updatedSearchRules  String?
+  updatedTagFilters   String?
+  updatedTemplates    String?
+  newInfluencers      Int      @default(0)
+  passedCount         Int      @default(0)
+  repliedCount        Int      @default(0)
+  interestedCount     Int      @default(0)
+  createdAt           DateTime @default(now())
+}
+
+model FeishuSyncLog {
+  id          String   @id @default(cuid())
+  direction   String   // to_feishu, from_feishu
+  dataType    String   // influencer, campaign, template
+  recordCount Int      @default(0)
+  status      String   @default("success")
+  errorMsg    String?
+  createdAt   DateTime @default(now())
+}
