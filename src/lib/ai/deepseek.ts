@@ -1,9 +1,10 @@
 /**
- * DeepSeek API 客户端（兼容 OpenAI SDK）
- * 使用动态 import 避免构建时的依赖问题
+ * DeepSeek API 客户端
+ * 使用原生 fetch，无需额外依赖
  */
 
 const API_KEY = process.env.DEEPSEEK_API_KEY || "";
+const BASE_URL = "https://api.deepseek.com/v1";
 
 export async function callDeepSeek(
   systemPrompt: string,
@@ -14,29 +15,32 @@ export async function callDeepSeek(
     throw new Error("DEEPSEEK_API_KEY 未配置");
   }
 
-  // 动态 import 仅在运行时加载
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({
-    baseURL: "https://api.deepseek.com/v1",
-    apiKey: API_KEY,
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens ?? 2000,
+    }),
   });
 
-  const response = await client.chat.completions.create({
-    model: "deepseek-chat",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature: options?.temperature ?? 0.7,
-    max_tokens: options?.maxTokens ?? 2000,
-  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`DeepSeek API error (${res.status}): ${text}`);
+  }
 
-  return response.choices[0]?.message?.content || "";
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "";
 }
 
-/**
- * 安全的 JSON 解析（AI 回复可能格式不规范）
- */
 export function parseJSON(text: string): Record<string, any> {
   try {
     return JSON.parse(text);
