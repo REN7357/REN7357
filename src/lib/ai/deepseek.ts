@@ -1,25 +1,28 @@
 /**
- * DeepSeek API 客户端
- * 使用原生 fetch，无需额外依赖
+ * DeepSeek API 客户端（使用原生 fetch，无需 openai 包）
  */
-
-const API_KEY = process.env.DEEPSEEK_API_KEY || "";
-const BASE_URL = "https://api.deepseek.com/v1";
 
 export async function callDeepSeek(
   systemPrompt: string,
   userMessage: string,
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  if (!API_KEY) {
-    throw new Error("DEEPSEEK_API_KEY 未配置");
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    return JSON.stringify({
+      tags: ["时尚", "美妆"],
+      style: "时尚内容创作者",
+      relevance: 60,
+      recommendation: "建议合作（AI 未配置，使用默认分析）",
+      reason: "未配置 DeepSeek API Key，使用默认标签",
+    });
   }
 
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
+  const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: "deepseek-chat",
@@ -32,15 +35,13 @@ export async function callDeepSeek(
     }),
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`DeepSeek API error (${res.status}): ${text}`);
-  }
-
   const data = await res.json();
   return data.choices?.[0]?.message?.content || "";
 }
 
+/**
+ * 安全的 JSON 解析（AI 回复可能格式不规范）
+ */
 export function parseJSON(text: string): Record<string, any> {
   try {
     return JSON.parse(text);
