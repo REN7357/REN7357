@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 const navItems = [
   { href: "/", label: "数据看板", icon: "📊" },
   { href: "/influencers", label: "达人管理", icon: "👥" },
+  { href: "/content", label: "内容分析", icon: "🎬" },
   { href: "/campaigns", label: "Campaign 管理", icon: "🚀" },
   { href: "/templates", label: "邮件模板", icon: "📧" },
   { href: "/outreach", label: "批量触达", icon: "📨" },

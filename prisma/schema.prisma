@@ -100,8 +100,40 @@ model Influencer {
   campaignId     String?
   campaign       Campaign?   @relation(fields: [campaignId], references: [id])
   outreaches     Outreach[]
+  videoAnalyses  VideoAnalysis[]
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @default(now())
+}
+
+// 爆款视频拆解：抓取视频数据 + 评论，AI 输出结构与评论洞察
+model VideoAnalysis {
+  id            String      @id @default(cuid())
+  url           String
+  platform      String      @default("tiktok")
+  videoId       String
+  author        String
+  authorFollowers Int       @default(0)
+  description   String      @default("")
+  hashtags      String      @default("[]")
+  mentions      String      @default("[]")
+  music         String?
+  duration      Int         @default(0)
+  postedAt      DateTime?
+  views         Int         @default(0)
+  likes         Int         @default(0)
+  comments      Int         @default(0)
+  shares        Int         @default(0)
+  saves         Int         @default(0)
+  metrics       String      @default("{}") // 互动率等计算指标
+  commentStats  String      @default("{}") // 评论关键词分类统计
+  topComments   String      @default("[]") // 高赞评论及回复
+  result        String?                    // AI 拆解结果 JSON
+  status        String      @default("done") // done, failed
+  errorMsg      String?
+  influencerId  String?
+  influencer    Influencer? @relation(fields: [influencerId], references: [id])
+  createdBy     String?
+  createdAt     DateTime    @default(now())
 }
 
 model DedupLog {
