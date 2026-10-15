@@ -108,17 +108,49 @@ async function getJSON(url: string, cookies: string, referer: string) {
   return JSON.parse(text);
 }
 
+export interface CommentFetchResult {
+  comments: TikTokComment[]; // 一级评论（按点赞降序），replies 为完整回复
+  reported: number; // TikTok 公布的评论总数（含回复）
+  topLevel: number;
+  replies: number;
+}
+
+async function fetchReplies(
+  video: TikTokVideo,
+  cookies: string,
+  cid: string,
+  max: number
+): Promise<{ text: string; likes: number }[]> {
+  const replies: { text: string; likes: number }[] = [];
+  for (let cursor = 0; replies.length < max; ) {
+    const data = await getJSON(
+      `https://www.tiktok.com/api/comment/list/reply/?aid=1988&item_id=${video.videoId}&comment_id=${cid}&count=50&cursor=${cursor}`,
+      cookies,
+      video.url
+    );
+    for (const r of data.comments || []) {
+      replies.push({ text: r.text || "", likes: Number(r.digg_count) || 0 });
+    }
+    if (!data.has_more || !data.comments?.length) break;
+    cursor = Number(data.cursor) || cursor + 50;
+  }
+  return replies.sort((a, b) => b.likes - a.likes);
+}
+
 /**
- * 抓取评论（按页 50 条），并为点赞最高的几条评论抓取回复
+ * 抓取全部一级评论（每页 50 条）及每条评论下的全部回复
+ * 注：TikTok 公布的总数包含已删除、被折叠/过滤的评论，接口拿不到这部分，抓取数会略少于总数
  */
 export async function fetchTikTokComments(
   video: TikTokVideo,
   cookies: string,
-  options?: { max?: number; repliesFor?: number }
-): Promise<TikTokComment[]> {
-  const max = options?.max ?? 300;
-  const repliesFor = options?.repliesFor ?? 3;
+  options?: { max?: number; maxRepliesPerComment?: number; concurrency?: number }
+): Promise<CommentFetchResult> {
+  const max = options?.max ?? 2000;
+  const maxReplies = options?.maxRepliesPerComment ?? 200;
+  const concurrency = options?.concurrency ?? 5;
   const comments: TikTokComment[] = [];
+  let reported = video.stats.comments;
 
   for (let cursor = 0; comments.length < max; ) {
     const data = await getJSON(
@@ -126,6 +158,7 @@ export async function fetchTikTokComments(
       cookies,
       video.url
     );
+    if (data.total) reported = Number(data.total);
     for (const c of data.comments || []) {
       comments.push({
         cid: c.cid,
@@ -140,21 +173,23 @@ export async function fetchTikTokComments(
 
   comments.sort((a, b) => b.likes - a.likes);
 
-  for (const c of comments.slice(0, repliesFor).filter((c) => c.replyCount > 0)) {
-    try {
-      const data = await getJSON(
-        `https://www.tiktok.com/api/comment/list/reply/?aid=1988&item_id=${video.videoId}&comment_id=${c.cid}&count=30&cursor=0`,
-        cookies,
-        video.url
-      );
-      c.replies = (data.comments || [])
-        .map((r: any) => ({ text: r.text || "", likes: Number(r.digg_count) || 0 }))
-        .sort((a: any, b: any) => b.likes - a.likes)
-        .slice(0, 10);
-    } catch {
-      // 回复抓取失败不影响主流程
-    }
-  }
+  // 并发抓取回复，单条失败不影响整体
+  const queue = comments.filter((c) => c.replyCount > 0);
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      for (let c = queue.shift(); c; c = queue.shift()) {
+        try {
+          c.replies = await fetchReplies(video, cookies, c.cid, maxReplies);
+        } catch {}
+      }
+    })
+  );
 
-  return comments.slice(0, max);
+  const kept = comments.slice(0, max);
+  return {
+    comments: kept,
+    reported,
+    topLevel: kept.length,
+    replies: kept.reduce((s, c) => s + (c.replies?.length || 0), 0),
+  };
 }

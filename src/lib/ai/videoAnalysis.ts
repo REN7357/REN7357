@@ -16,7 +16,10 @@ export interface VideoMetrics {
 }
 
 export interface CommentStats {
-  total: number;
+  total: number; // 实际参与分类的条数（一级评论 + 回复）
+  reported?: number; // TikTok 公布的总数
+  topLevel?: number;
+  replies?: number;
   categories: Record<string, { count: number; samples: string[] }>;
 }
 
@@ -71,11 +74,13 @@ const CATEGORY_RULES: [string, RegExp][] = [
 ];
 
 export function categorizeComments(comments: TikTokComment[]): CommentStats {
+  // 回复同样代表用户声音（如“求链接”多出现在热评回复里），一并分类
+  const all = comments.flatMap((c) => [c, ...(c.replies || []).map((r) => ({ ...r, replyCount: 0, cid: "" }))]);
   const categories: CommentStats["categories"] = {};
   for (const [name] of CATEGORY_RULES) categories[name] = { count: 0, samples: [] };
   categories["夸赞/情绪"] = { count: 0, samples: [] };
 
-  for (const c of comments) {
+  for (const c of all) {
     const text = c.text.trim();
     if (!text) continue;
     const hit = CATEGORY_RULES.find(([, re]) => re.test(text));
@@ -83,7 +88,7 @@ export function categorizeComments(comments: TikTokComment[]): CommentStats {
     cat.count++;
     if (cat.samples.length < 5) cat.samples.push(text.slice(0, 150)); // comments 已按赞排序
   }
-  return { total: comments.length, categories };
+  return { total: all.filter((c) => c.text.trim()).length, categories };
 }
 
 const SYSTEM_PROMPT = `你是跨境电商内容分析专家，服务于假发品牌 TEDHAIR 的达人 BD 团队。
@@ -132,7 +137,7 @@ export async function analyzeVideoWithAI(
       高赞评论: comments.slice(0, 60).map((c) => ({
         text: c.text,
         likes: c.likes,
-        replies: c.replies?.map((r) => `${r.text} (${r.likes}赞)`),
+        replies: c.replies?.slice(0, 10).map((r) => `${r.text} (${r.likes}赞)`),
       })),
     },
     null,

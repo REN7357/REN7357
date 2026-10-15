@@ -146,7 +146,12 @@ function Detail({ a }: { a: any }) {
         </>
       )}
 
-      <Section title={`评论分类（共抓取 ${stats.total} 条）`}>
+      <Section title={`评论分类（抓取 ${stats.total} 条${stats.reported ? ` / 公布 ${stats.reported} 条` : ""}）`}>
+        {stats.reported > 0 && (
+          <p className="text-xs text-gray-400 -mt-2 mb-3">
+            一级评论 {stats.topLevel} + 回复 {stats.replies}；与公布数的差额为已删除、被折叠或被过滤的评论，接口不可见
+          </p>
+        )}
         <div className="space-y-3">
           {Object.entries(stats.categories as Record<string, any>).map(([name, c]) => (
             <div key={name}>

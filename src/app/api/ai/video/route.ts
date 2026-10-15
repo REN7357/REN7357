@@ -39,16 +39,22 @@ export async function POST(req: NextRequest) {
   }
 
   // 评论抓取失败时仍保留视频数据分析
-  let comments: Awaited<ReturnType<typeof fetchTikTokComments>> = [];
+  let fetched: Awaited<ReturnType<typeof fetchTikTokComments>> | null = null;
   let commentError: string | null = null;
   try {
-    comments = await fetchTikTokComments(video, cookies);
+    fetched = await fetchTikTokComments(video, cookies);
   } catch (err: any) {
     commentError = `评论抓取失败: ${err.message}`;
   }
+  const comments = fetched?.comments || [];
 
   const metrics = computeMetrics(video);
-  const commentStats = categorizeComments(comments);
+  const commentStats = {
+    ...categorizeComments(comments),
+    reported: fetched?.reported ?? video.stats.comments,
+    topLevel: fetched?.topLevel ?? 0,
+    replies: fetched?.replies ?? 0,
+  };
 
   let result = null;
   let aiError: string | null = null;
@@ -88,7 +94,9 @@ export async function POST(req: NextRequest) {
       ...video.stats,
       metrics: JSON.stringify(metrics),
       commentStats: JSON.stringify(commentStats),
-      topComments: JSON.stringify(comments.slice(0, 30)),
+      topComments: JSON.stringify(
+        comments.slice(0, 30).map((c) => ({ ...c, replies: c.replies?.slice(0, 10) }))
+      ),
       result: result ? JSON.stringify(result) : null,
       errorMsg: [commentError, aiError].filter(Boolean).join("；") || null,
       influencerId: linkedId,
