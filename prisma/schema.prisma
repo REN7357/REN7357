@@ -162,3 +162,17 @@ model FeishuSyncLog {
   errorMsg    String?
   createdAt   DateTime @default(now())
 }
+
+// Shopify ↔ ERP 同步事件：用于 webhook 去重、失败重试排查
+model SyncEvent {
+  id         String   @id @default(cuid())
+  source     String   // shopify, erp
+  externalId String   @unique // Shopify X-Shopify-Webhook-Id 或 ERP 请求 ID
+  topic      String   // orders/create, orders/cancelled, inventory, fulfillment
+  status     String   @default("received") // received, success, failed
+  attempts   Int      @default(0)
+  error      String?
+  payload    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
